@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<title>ElmoAI</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+* { box-sizing: border-box; margin:0; padding:0; }
+body { display:flex; height:100vh; font-family:"Segoe UI", sans-serif; background:#121212; color:#e6e6e6; }
+
+/* LEWY PASEK SZERSZY */
+.sidebar {
+  width: 240px;
+  display:flex; flex-direction:column; justify-content:space-between;
+  border-right:1px solid #0a2e1d;
+  transition: width 0.3s;
+}
+.sidebar .logo { padding:20px; text-align:center; font-size:20px; font-weight:bold; border-bottom:1px solid #0a2e1d; color:#fff; }
+.chat-list { flex:1; overflow-y:auto; }
+.chat-item { padding:14px; font-size:15px; color:#cfcfcf; cursor:pointer; border-bottom:1px solid #0a2e1d; }
+.chat-item:hover { opacity:0.8; }
+
+/* LEWY DOLNY PANEL USTAWIEŃ */
+.settings-panel { padding:12px; border-top:1px solid #0a2e1d; display:flex; flex-direction:column; gap:8px; }
+.settings-panel label { font-size:13px; opacity:0.85; cursor:pointer; }
+.settings-panel select, .settings-panel input, .settings-panel button { width:100%; padding:6px; border-radius:6px; border:none; background:#1f1f1f; color:#eaeaea; font-size:14px; }
+
+/* PRAWA STRONA */
+.main { flex:1; display:flex; flex-direction:column; padding:20px; background:radial-gradient(circle at top, #1b1b1b, #0e0e0e); }
+.header { text-align:center; font-size:36px; font-weight:300; margin-bottom:16px; }
+
+/* OPCJE */
+.options { display:flex; gap:12px; margin-bottom:14px; }
+.option-box { flex:1; }
+.option-box select { width:100%; padding:10px; border-radius:8px; border:none; background:#1f1f1f; color:#eaeaea; font-size:15px; }
+
+/* CHAT */
+.chat { flex:1; background:rgba(255,255,255,0.05); border-radius:14px; padding:16px; overflow-y:auto; margin-bottom:12px; }
+.msg { margin-bottom:12px; line-height:1.5; }
+.user { color:#ffd500; font-weight:bold; }
+.ai { color:#ffffff; }
+
+/* INPUT */
+textarea { width:100%; height:80px; padding:14px; border-radius:12px; border:none; resize:none; background:#1f1f1f; color:#fff; font-size:16px; }
+
+/* BUTTON */
+button { margin-top:8px; width:100%; padding:14px; border-radius:12px; border:none; background:linear-gradient(135deg,#0f4d31,#137d4a); color:#fff; font-weight:600; font-size:16px; cursor:pointer; transition:0.2s; }
+button:hover { filter:brightness(1.15); }
+
+/* CHAT ACTIONS */
+.chat-actions { display:flex; gap:8px; margin-bottom:12px; }
+.chat-actions button { flex:1; padding:8px; font-size:14px; }
+</style>
+</head>
+<body>
+
+<div class="sidebar" id="sidebar" style="background:linear-gradient(180deg,#0f4d31,#061a12);">
+  <div>
+    <div class="logo">ElmoAI</div>
+    <div class="chat-list" id="chatList">
+      <div class="chat-item">Czat 1</div>
+    </div>
+  </div>
+  <div class="settings-panel">
+    <label>Wybierz font</label>
+    <select id="fontSelect">
+      <option value="Segoe UI">Segoe UI</option>
+      <option value="Arial">Arial</option>
+      <option value="Courier New">Courier New</option>
+      <option value="Verdana">Verdana</option>
+    </select>
+
+    <label>Kolor paska</label>
+    <select id="colorSelect">
+      <option value="green">Zielony</option>
+      <option value="red">Czerwony</option>
+      <option value="blue">Niebieski</option>
+      <option value="yellow">Żółty</option>
+      <option value="purple">Fioletowy</option>
+    </select>
+
+    <label><input type="checkbox" id="darkModeToggle" checked> Tryb ciemny</label>
+    <button id="newChatBtn">Nowy czat</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="header">ElmoAI</div>
+
+  <div class="options">
+    <div class="option-box">
+      <label>Styl odpowiedzi</label>
+      <select id="style">
+        <option value="normal">Normalny – zwykłe tłumaczenie</option>
+        <option value="pro">Profesjonalny – technicznie</option>
+        <option value="luźny">Luźny – na chillku</option>
+        <option value="krótki">Krótki – bez lania wody</option>
+      </select>
+    </div>
+    <div class="option-box">
+      <label>Specjalizacja AI</label>
+      <select id="mode">
+        <option value="minecraft">Minecraft – Skript</option>
+        <option value="java">Minecraft – Java</option>
+        <option value="datapack">Minecraft – Datapack</option>
+        <option value="other">Inna dziedzina</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="chat-actions">
+    <button id="clearChatBtn">Wyczyść czat</button>
+  </div>
+
+  <div class="chat" id="chat"></div>
+  <textarea id="input" placeholder="Napisz wiadomość i Enter albo Wyślij..."></textarea>
+  <button id="send">Wyślij</button>
+</div>
+
+<script>
+const chat = document.getElementById("chat");
+const input = document.getElementById("input");
+const send = document.getElementById("send");
+const style = document.getElementById("style");
+const mode = document.getElementById("mode");
+const fontSelect = document.getElementById("fontSelect");
+const darkToggle = document.getElementById("darkModeToggle");
+const chatList = document.getElementById("chatList");
+const newChatBtn = document.getElementById("newChatBtn");
+const clearChatBtn = document.getElementById("clearChatBtn");
+const sidebar = document.getElementById("sidebar");
+const colorSelect = document.getElementById("colorSelect");
+
+let currentChat = "Czat 1";
+const BACKEND = "/chat";
+
+function addMessage(text, cls){
+  const div = document.createElement("div");
+  div.className = "msg " + cls;
+  div.textContent = text;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+async function sendMessage(){
+  if(!input.value.trim()) return;
+  const message = input.value;
+  input.value = "";
+  addMessage("Ty: " + message,"user");
+  addMessage("ElmoAI: myślę...","ai");
+  try{
+    const res = await fetch(BACKEND,{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({ message, style: style.value, mode: mode.value })
+    });
+    const data = await res.json();
+    chat.lastChild.textContent = "ElmoAI: " + data.reply;
+  }catch{
+    chat.lastChild.textContent = "ElmoAI: błąd połączenia";
+  }
+}
+
+send.onclick = sendMessage;
+input.addEventListener("keydown", e=>{
+  if(e.key==="Enter" && !e.shiftKey){ e.preventDefault(); sendMessage(); }
+});
+
+fontSelect.addEventListener("change", ()=>{ document.body.style.fontFamily = fontSelect.value; });
+
+darkToggle.addEventListener("change", ()=>{
+  if(darkToggle.checked){ document.body.style.background="#121212"; chat.style.background="rgba(255,255,255,0.05)"; chat.style.color="#fff"; }
+  else{ document.body.style.background="#f2f2f2"; chat.style.background="#e0e0e0"; chat.style.color="#000"; }
+});
+
+newChatBtn.addEventListener("click", ()=>{
+  const chatName = prompt("Podaj nazwę nowego czatu:","Czat "+(chatList.children.length+1));
+  if(chatName){
+    const div = document.createElement("div");
+    div.className="chat-item";
+    div.textContent=chatName;
+    chatList.appendChild(div);
+    div.onclick = ()=>{ currentChat=chatName; chat.innerHTML=""; };
+  }
+});
+
+clearChatBtn.addEventListener("click", ()=>{ chat.innerHTML=""; });
+
+Array.from(chatList.children).forEach(item=>{
+  item.onclick = ()=>{ currentChat=item.textContent; chat.innerHTML=""; };
+});
+
+colorSelect.addEventListener("change", ()=>{
+  const color = colorSelect.value;
+  let gradient="";
+  let buttonGradient = "";
+
+  switch(color){
+    case "green":
+      gradient="linear-gradient(180deg,#0f4d31,#061a12)";
+      buttonGradient="linear-gradient(135deg,#0f4d31,#137d4a)";
+      break;
+    case "red":
+      gradient="linear-gradient(180deg,#a12f2f,#610c0c)";
+      buttonGradient="linear-gradient(135deg,#a12f2f,#610c0c)";
+      break;
+    case "blue":
+      gradient="linear-gradient(180deg,#1a4da1,#0a1a61)";
+      buttonGradient="linear-gradient(135deg,#1a4da1,#0a1a61)";
+      break;
+    case "yellow":
+      gradient="linear-gradient(180deg,#d1a12f,#6a610c)";
+      buttonGradient="linear-gradient(135deg,#d1a12f,#6a610c)";
+      break;
+    case "purple":
+      gradient="linear-gradient(180deg,#6a2fa1,#3b0c61)";
+      buttonGradient="linear-gradient(135deg,#6a2fa1,#3b0c61)";
+      break;
+  }
+  sidebar.style.background=gradient;
+  send.style.background=buttonGradient;
+});
+
+// ustaw domyślny kolor przycisku zgodny z początkowym paskiem
+send.style.background = "linear-gradient(135deg,#0f4d31,#137d4a)";
+
+colorSelect.addEventListener("change", () => {
+  const color = colorSelect.value;
+
+  let gradient = "";
+  let buttonGradient = "";
+
+  switch(color){
+    case "green":
+      gradient = "linear-gradient(180deg,#0f4d31,#061a12)";
+      buttonGradient = "linear-gradient(135deg,#0f4d31,#137d4a)";
+      break;
+
+    case "red":
+      gradient = "linear-gradient(180deg,#a12f2f,#610c0c)";
+      buttonGradient = "linear-gradient(135deg,#a12f2f,#610c0c)";
+      break;
+
+    case "blue":
+      gradient = "linear-gradient(180deg,#1a4da1,#0a1a61)";
+      buttonGradient = "linear-gradient(135deg,#1a4da1,#0a1a61)";
+      break;
+
+    case "yellow":
+      gradient = "linear-gradient(180deg,#d1a12f,#6a610c)";
+      buttonGradient = "linear-gradient(135deg,#d1a12f,#6a610c)";
+      break;
+
+    case "purple":
+      gradient = "linear-gradient(180deg,#6a2fa1,#3b0c61)";
+      buttonGradient = "linear-gradient(135deg,#6a2fa1,#3b0c61)";
+      break;
+  }
+
+  sidebar.style.background = gradient;
+  send.style.background = buttonGradient;
+});
+
+</script>
+</body>
+</html>
+
